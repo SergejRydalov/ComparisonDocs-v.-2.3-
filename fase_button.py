@@ -42,6 +42,13 @@ class FaceButton(tk.Canvas):
     def init_ui(self):
         self.pack(fill=tk.BOTH, expand=1)
 
+        s = ttk.Style()
+        s.theme_use('clam')
+        s.configure("red.Horizontal.TProgressbar", foreground='red', background='Orange')
+        self.progress = ttk.Progressbar(self, style="red.Horizontal.TProgressbar", orient="horizontal",
+                                        length=200, mode="determinate")
+        self.progress.place(x=0, y=151, relwidth=1)
+
         self.canvas = Canvas(self, bg='Azure', height=150, width=700)
         self.canvas.place(x=0, y=0)
 
@@ -64,7 +71,7 @@ class FaceButton(tk.Canvas):
         self.btnSelASUS.place(x=15, y=42)
 
         self.btnSRV = Button(self.canvas, text='Сравнить отчеты', bg='#b7c3c7', font=("Verdana", 9), fg='#ffffff',
-                             state=DISABLED, activebackground='#fac96e', command=self.compare,
+                             state=DISABLED, activebackground='#fac96e', command=lambda:[self.start(), self.compare()],
                              height=1, width=18)
 
         self.btnSRV.place(x=15, y=117)
@@ -80,7 +87,6 @@ class FaceButton(tk.Canvas):
                              height=1, width=22)
         self.btnSHR.place(x=500, y=117)
         self.btnSHR.place(x=500, y=117)
-
         self.var1 = BooleanVar()
         self.check_win = Checkbutton(self.canvas, text="В окне",
                          font=("Verdana", 9),
@@ -93,14 +99,38 @@ class FaceButton(tk.Canvas):
         self.check_win.place(x=390, y=117)
 
         self.canvas1 = Canvas(self, bg='White')
-        self.canvas1.place(x=0, y=170, relwidth=0.9999, relheight=0.9999)
+        self.canvas1.place(x=0, y=158, relwidth=0.978, relheight=0.815)
+        self.canvas2 = Canvas(self, bg='Honeydew', height=150)
+        self.canvas2.place(x=705, y=0, relwidth=0.632)
+        self.canvas3 = Canvas(self, bg='AliceBlue', width=40)
+        self.canvas3.place(relx=0.977, y=158, relheight=0.815)
+        self.checkbut = 0
+
         # self.canvas1 = Canvas(self, bg='Azure', height=150, width=550)
         # self.canvas1.place(relx=0.0, rely=0.0)
 
         self.pack()
 
+    def start(self):
+        self.bytes = 0
+        self.maxbytes = 0
+        self.progress["value"] = 0
+        self.maxbytes = 2500
+        self.progress["maximum"] = 2500
+        self.read_bytes()
+
+    def read_bytes(self):
+        '''simulate reading 500 bytes; update progress bar'''
+        self.bytes += 100
+        self.progress["value"] = self.bytes
+        if self.bytes < self.maxbytes:
+            # read more bytes after 100 ms
+            self.after(10, self.read_bytes)
+        # else:
+        #     self.progress["value"] = 0
+
     def check_show_win(self):
-        self.checkbut =  self.var1.get()
+        self.checkbut = self.var1.get()
 
     def check_labels(self):
         if self.mylabel2['text'] != '' and self.mylabel1['text'] != '':
@@ -149,27 +179,31 @@ class FaceButton(tk.Canvas):
 
     def compare(self):
         df = pd.read_excel(self.new_path1, sheet_name='Лист1')
+        self.progress.update_idletasks()
         column_names = {'Отчет по дебиторской задолженности': 'Категория', 'Unnamed: 2': 'Договор',
                         'Unnamed: 3': 'Name_con', 'Unnamed: 4': 'Ob_Z',
                         'Unnamed: 5': 'Pr_Z', 'Unnamed: 6': 'KR_Z',
                         'Unnamed: 7': 'Age_start', 'Unnamed: 8': 'Age_end', 'Unnamed: 9': 'quantity_Age'}
         df = df.rename(columns=column_names)
+        self.progress.update_idletasks()
         df = df.dropna(thresh=2)[['Категория', 'Договор', 'Name_con', 'Pr_Z']]
         df.drop([2], inplace=True)
         df["Pr_Z"] = pd.to_numeric(df["Pr_Z"])
         df = df.dropna(thresh=2)[['Договор', 'Name_con', 'Pr_Z']]
         df.index = np.arange(1, len(df) + 1)
-
+        self.progress.update_idletasks()
         df2 = pd.read_excel(self.mylabel2['text'])
+        self.progress.update_idletasks()
         column_names1 = {df2.columns[0]: 'Договор', df2.columns[1]: 'Name_con',
                          df2.columns[5]: 'Ob_Z', df2.columns[6]: 'Pr_Z'}
         df2 = df2.rename(columns=column_names1)
+        self.progress.update_idletasks()
         df2 = df2.dropna(thresh=1)[['Договор', 'Name_con', 'Pr_Z']]
         df2 = df2.dropna()
         df2 = df2.astype({"Name_con": str})
         df2 = df2[~df2.Name_con.str.contains("Контрагент")]
         df2.index = np.arange(1, len(df2) + 1)
-
+        self.progress.update_idletasks()
         srv = (df.shape == df2.shape)  # первый признак сходимости отчетов по их форме (число строк и столбцов)
         if srv is True:
             message = 'Отчеты совпадают'
@@ -188,7 +222,7 @@ class FaceButton(tk.Canvas):
             self.NWDF = self.NWDF.query("Pr_Z != Pr_Z_ASUS")
             self.NWDF = self.NWDF.sort_values(by='Договор', ascending=False)
             self.NWDF.index = np.arange(1, len(self.NWDF) + 1)
-            print(self.NWDF)
+            # print(self.NWDF)
             del self.NWDF['_merge']
             self.NWDF.groupby(self.NWDF['Договор']).mean()
             self.NWDF['Name_con'].fillna(value=self.NWDF['Name_con_ASUS'], inplace=True)
@@ -207,19 +241,27 @@ class FaceButton(tk.Canvas):
                                  'Размер ДЗ в ИС ПИР']]
             self.checktextlabel()
 
+    there_is_table = 0
+
     def show_resultat(self):
+        # self.canvas1.destroy()
+        # self.canvas1
+
         dfrezult = self.dfrez
         if self.checkbut is True:
             win = Toplevel(self, bd=5, bg="lightblue")
             win.title("Результат равнения отчетов")
             win.minsize(width=1200, height=800)
             data = dfrezult.to_numpy()
-            table = Table(win, headings=dfrezult.columns.tolist(), rows=data)
+            self.table = Table(win, headings=dfrezult.columns.tolist(), rows=data)
+            self.table.pack(expand=tk.YES, fill=tk.BOTH)
         else:
-            data = dfrezult.to_numpy()
-            table = Table(self.canvas1, headings=dfrezult.columns.tolist(), rows=data)
+            if self.there_is_table == 0:
+                self.there_is_table += 1
+                data = dfrezult.to_numpy()
+                self.table = Table(self.canvas1, headings=dfrezult.columns.tolist(), rows=data)
         # print(dfrezult.columns.tolist())
-        table.pack(expand=tk.YES, fill=tk.BOTH)
+                self.table.pack(expand=tk.YES, fill=tk.BOTH)
 
     def show_save(self):
         filename = fd.asksaveasfilename(
